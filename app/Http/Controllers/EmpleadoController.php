@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Empleado;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class EmpleadoController extends Controller
 {
@@ -15,6 +16,8 @@ class EmpleadoController extends Controller
     public function index()
     {
         //
+        $datos['empleados'] = Empleado::paginate(1);
+        return view('empleado.index',$datos);
     }
 
     /**
@@ -25,6 +28,8 @@ class EmpleadoController extends Controller
     public function create()
     {
         //
+
+        return view('empleado.create');
     }
 
     /**
@@ -35,7 +40,36 @@ class EmpleadoController extends Controller
      */
     public function store(Request $request)
     {
+
+        // validacion
+        // elegir campos a validar
+        $campos = [
+            'Nombre'=>'required|string|max:100',
+            'ApellidoPaterno'=>'required|string|max:100',
+            'ApellidoMaterno'=>'required|string|max:100',
+            'Correo'=>'required|email',
+            'Foto'=>'required|max:10000|mimes:jpeg,png,jpg'
+        ];
+
+        $mensaje=[
+            'required'=>'El :attribute es requerido',
+            'Foto.required'=>'La foto es requerida'
+        ];
+
+        $this->validate($request, $campos, $mensaje);
+
+
         //
+        // $datosEmpleado = request()->all();
+        $datosEmpleado = request()->except('_token');
+        if($request->hasFile('Foto')){
+            $datosEmpleado['Foto']=$request->file('Foto')->store('uploads','public');
+        }
+
+        Empleado::insert($datosEmpleado);
+
+        // return response()->json($datosEmpleado);
+        return redirect('empleado')->with('mensaje','Empleado agregado con éxito');
     }
 
     /**
@@ -55,9 +89,12 @@ class EmpleadoController extends Controller
      * @param  \App\Models\Empleado  $empleado
      * @return \Illuminate\Http\Response
      */
-    public function edit(Empleado $empleado)
+    public function edit($id)
     {
         //
+        $empleado = Empleado::findOrFail($id);
+        return view('empleado.edit', compact('empleado'));
+
     }
 
     /**
@@ -67,9 +104,49 @@ class EmpleadoController extends Controller
      * @param  \App\Models\Empleado  $empleado
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Empleado $empleado)
+    public function update(Request $request, $id)
     {
+
+
+// validacion
+        // elegir campos a validar
+        $campos = [
+            'Nombre'=>'required|string|max:100',
+            'ApellidoPaterno'=>'required|string|max:100',
+            'ApellidoMaterno'=>'required|string|max:100',
+            'Correo'=>'required|email'
+        ];
+
+        $mensaje=[
+            'required'=>'El :attribute es requerido'
+        ];
+
+        if($request->hasFile('Foto')){ // si existe la imagen, le ponemos la validacion
+            $campos=['Foto'=>'required|max:10000|mimes:jpeg,png,jpg'];
+            $mensaje=['Foto.required'=>'La foto es requerida'];
+        }
+
+        $this->validate($request, $campos, $mensaje);
+
+
+
         //
+        $datosEmpleado = request()->except(['_token','_method']);
+
+        if($request->hasFile('Foto')){ // si existe la imagen
+            $empleado = Empleado::findOrFail($id); // busco al empleado para obtener la img
+            Storage::delete('public/'.$empleado->Foto); // elimino la img
+            $datosEmpleado['Foto']=$request->file('Foto')->store('uploads','public'); // actualizo al empleado con la imagen nueva
+        }
+
+
+
+        Empleado::where('id','=',$id)->update($datosEmpleado);
+
+        //busco el empleado por el id y envio a formulario edit empleado
+        $empleado = Empleado::findOrFail($id);
+        // return view('empleado.edit', compact('empleado'));
+        return redirect('empleado')->with('mensaje','Empleado Modificado!');
     }
 
     /**
@@ -78,8 +155,14 @@ class EmpleadoController extends Controller
      * @param  \App\Models\Empleado  $empleado
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Empleado $empleado)
+    public function destroy($id)
     {
         //
+        $empleado = Empleado::findOrFail($id); // busco al empleado para obtener la img
+        if(Storage::delete('public/'.$empleado->Foto)){
+            Empleado::destroy($id);
+        }
+
+        return redirect('empleado')->with('mensaje','Empleado Borrado!');
     }
 }
